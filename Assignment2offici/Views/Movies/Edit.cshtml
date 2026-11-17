@@ -1,0 +1,221 @@
+﻿
+@using System;
+@using System.Globalization;
+@using WebMatrix.Data;
+
+@{
+    ViewBag.Title = "Edit Movie";
+
+    int movieId = 0;
+    dynamic movie = null;
+    string errorMessage = "";
+
+    string title = "";
+    string releaseYearText = "";
+    string runtimeText = "";
+    string classification = "";
+    string rentalPriceText = "";
+    string description = "";
+    string posterFilename = "";
+
+    if (int.TryParse(Request.QueryString["id"], out movieId))
+    {
+        var db = Database.Open("dvdRental");
+
+        movie = db.QuerySingle(
+            "SELECT * FROM movies WHERE movie_id = @0",
+            movieId
+        );
+
+        if (movie == null)
+        {
+            errorMessage = "Movie not found.";
+        }
+        else
+        {
+            title = movie.title;
+            releaseYearText = movie.release_year.ToString();
+            runtimeText = movie.runtime_minutes.ToString();
+            classification = movie.classification;
+            rentalPriceText = movie.rental_price.ToString();
+            description = movie.description ?? "";
+            posterFilename = movie.poster_filename ?? "";
+        }
+
+        if (Request.HttpMethod == "POST" && movie != null)
+        {
+            title = Request.Form["title"] ?? "";
+            releaseYearText = Request.Form["release_year"] ?? "";
+            runtimeText = Request.Form["runtime_minutes"] ?? "";
+            classification = Request.Form["classification"] ?? "";
+            rentalPriceText = Request.Form["rental_price"] ?? "";
+            description = Request.Form["description"] ?? "";
+            posterFilename = Request.Form["poster_filename"] ?? "";
+
+            int releaseYear;
+            int runtimeMinutes;
+            decimal rentalPrice;
+
+            if (String.IsNullOrWhiteSpace(title))
+            {
+                errorMessage = "Please enter a movie title.";
+            }
+            else if (!int.TryParse(releaseYearText, out releaseYear)
+                || releaseYear < 1888
+                || releaseYear > DateTime.Now.Year + 5)
+            {
+                errorMessage = "Please enter a valid release year.";
+            }
+            else if (!int.TryParse(runtimeText, out runtimeMinutes)
+                || runtimeMinutes <= 0)
+            {
+                errorMessage = "Please enter a valid runtime.";
+            }
+            else if (!decimal.TryParse(
+                rentalPriceText,
+                NumberStyles.Number,
+                CultureInfo.InvariantCulture,
+                out rentalPrice) || rentalPrice < 0)
+            {
+                errorMessage = "Please enter a valid rental price.";
+            }
+            else if (classification != "G"
+                && classification != "PG"
+                && classification != "M"
+                && classification != "MA15+"
+                && classification != "R18+")
+            {
+                errorMessage = "Please select a valid classification.";
+            }
+            else if (String.IsNullOrWhiteSpace(description))
+            {
+                errorMessage = "Please enter a movie description.";
+            }
+            else
+            {
+                db.Execute(
+                    @"UPDATE movies
+                      SET title = @0,
+                          release_year = @1,
+                          runtime_minutes = @2,
+                          classification = @3,
+                          rental_price = @4,
+                          description = @5,
+                          poster_filename = @6
+                      WHERE movie_id = @7",
+                    title,
+                    releaseYear,
+                    runtimeMinutes,
+                    classification,
+                    rentalPrice,
+                    description,
+                    posterFilename,
+                    movieId
+                );
+
+                Response.Redirect(
+                    Url.Action("Details", "Movies") + "?id=" + movieId
+                );
+            }
+        }
+    }
+    else
+    {
+        errorMessage = "Invalid movie ID.";
+    }
+}
+
+<div class="container py-4">
+
+    <h2 class="fw-bold mb-4">Edit Movie</h2>
+
+    @if (!String.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger">
+            @errorMessage
+        </div>
+    }
+
+    @if (movie != null)
+    {
+        <div class="card shadow-sm border-0">
+            <div class="card-body p-4">
+
+                <form method="post"
+                      action="@Url.Action("Edit", "Movies", new { id = movieId })">
+
+                    <div class="mb-3">
+                        <label for="title" class="form-label">Movie Title</label>
+                        <input type="text" class="form-control"
+                               id="title" name="title"
+                               value="@title" maxlength="255" required />
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="release_year" class="form-label">Release Year</label>
+                            <input type="number" class="form-control"
+                                   id="release_year" name="release_year"
+                                   value="@releaseYearText" min="1888"
+                                   max="@(DateTime.Now.Year + 5)" required />
+                        </div>
+
+                        <div class="col-md-4 mb-3">
+                            <label for="runtime_minutes" class="form-label">Runtime (minutes)</label>
+                            <input type="number" class="form-control"
+                                   id="runtime_minutes" name="runtime_minutes"
+                                   value="@runtimeText" min="1" required />
+                        </div>
+
+                        <div class="col-md-4 mb-3">
+                            <label for="classification" class="form-label">Classification</label>
+                            <select class="form-select" id="classification"
+                                    name="classification" required>
+                                <option value="">Select classification</option>
+                                @foreach (var rating in new[] { "G", "PG", "M", "MA15+", "R18+" })
+                                {
+                                    <option value="@rating"
+                                        @(classification == rating ? "selected" : "")>
+                                        @rating
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="rental_price" class="form-label">Rental Price ($)</label>
+                        <input type="number" class="form-control"
+                               id="rental_price" name="rental_price"
+                               value="@rentalPriceText" min="0"
+                               step="0.01" required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Description</label>
+                        <textarea class="form-control" id="description"
+                                  name="description" rows="4"
+                                  required>@description</textarea>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="poster_filename" class="form-label">Poster Filename</label>
+                        <input type="text" class="form-control"
+                               id="poster_filename" name="poster_filename"
+                               value="@posterFilename" />
+                    </div>
+
+                    <button type="submit" class="btn btn-primary px-4">
+                        Save Changes
+                    </button>
+
+                    <a href="@Url.Action("Index", "Movies")"
+                       class="btn btn-outline-secondary">
+                        Cancel
+                    </a>
+
+                </form>
+            </div>
+        </div>
+    }
+</div>

@@ -1,0 +1,428 @@
+﻿
+@using System
+@using System.Collections.Generic
+@using WebMatrix.Data
+
+@{
+    ViewBag.Title = "Movie Catalogue";
+
+    string titleFilter = Request.QueryString["title"] ?? "";
+    string genreFilter = Request.QueryString["genre"] ?? "";
+    string actorFilter = Request.QueryString["actor"] ?? "";
+    string sortDirection = Request.QueryString["sort"] ?? "asc";
+
+    if (sortDirection != "desc")
+    {
+        sortDirection = "asc";
+    }
+
+    int genreId = 0;
+    int actorId = 0;
+
+    bool hasGenreFilter = int.TryParse(genreFilter, out genreId);
+    bool hasActorFilter = int.TryParse(actorFilter, out actorId);
+
+    var movies = new List<dynamic>();
+    var genreOptions = new List<dynamic>();
+    var actorOptions = new List<dynamic>();
+
+    dynamic stats = null;
+    string databaseError = "";
+
+    try
+    {
+        var db = Database.Open("dvdRental");
+
+        // Overall catalogue statistics
+        stats = db.QuerySingle(@"
+            SELECT
+                COUNT(*) AS movie_count,
+                (SELECT COUNT(*) FROM genres) AS genre_count,
+                (SELECT COUNT(*) FROM actors) AS actor_count,
+                (SELECT COUNT(*) FROM copies
+                    WHERE retired = false) AS total_copies,
+                (SELECT COUNT(*) FROM copies c
+                    WHERE c.retired = false
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM rental_items ri
+                        WHERE ri.copy_id = c.copy_id
+                        AND ri.return_date IS NULL
+                    )
+                ) AS available_copies
+            FROM movies
+        ");
+
+        // Load genres for the filter
+        foreach (var genre in db.Query(
+            "SELECT genre_id, genre_name FROM genres ORDER BY genre_name"))
+        {
+            genreOptions.Add(genre);
+        }
+
+        // Load actors for the filter
+        foreach (var actor in db.Query(@"
+            SELECT actor_id,
+                   first_name || ' ' || last_name AS actor_name
+            FROM actors
+            ORDER BY last_name, first_name"))
+        {
+            actorOptions.Add(actor);
+        }
+
+        // Main movie query with related database information
+        string sql = @"
+            SELECT
+                m.movie_id,
+                m.title,
+                m.release_year,
+                m.runtime_minutes,
+                m.classification,
+                m.rental_price,
+                m.description,
+                m.poster_filename,
+
+                COALESCE((
+                    SELECT STRING_AGG(
+                        DISTINCT g.genre_name,
+                        ', ' ORDER BY g.genre_name
+                    )
+                    FROM movie_genres mg
+                    JOIN genres g ON mg.genre_id = g.genre_id
+                    WHERE mg.movie_id = m.movie_id
+                ), 'No genre assigned') AS genre_names,
+
+                COALESCE((
+                    SELECT STRING_AGG(
+                        DISTINCT (a.first_name || ' ' || a.last_name),
+                        ', ' ORDER BY (a.first_name || ' ' || a.last_name)
+                    )
+                    FROM movie_actors ma
+                    JOIN actors a ON ma.actor_id = a.actor_id
+                    WHERE ma.movie_id = m.movie_id
+                ), 'No cast listed') AS actor_names,
+
+                (
+                    SELECT COUNT(*)
+                    FROM copies c
+                    WHERE c.movie_id = m.movie_id
+                    AND c.retired = false
+                ) AS total_copies,
+
+                (
+                    SELECT COUNT(*)
+                    FROM copies c
+                    WHERE c.movie_id = m.movie_id
+                    AND c.retired = false
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM rental_items ri
+                        WHERE ri.copy_id = c.copy_id
+                        AND ri.return_date IS NULL
+                    )
+                ) AS available_copies
+
+            FROM movies m
+            WHERE 1 = 1
+        ";
+
+        var parameters = new List<object>();
+
+        // Filter by movie title
+        if (!String.IsNullOrWhiteSpace(titleFilter))
+        {
+            sql += " AND m.title ILIKE @" + parameters.Count;
+            parameters.Add("%" + titleFilter.Trim() + "%");
+        }
+
+        // Filter by genre
+        if (hasGenreFilter)
+        {
+            sql += @"
+                AND EXISTS (
+                    SELECT 1
+                    FROM movie_genres mg
+                    WHERE mg.movie_id = m.movie_id
+                    AND mg.genre_id = @" + parameters.Count + ")";
+            parameters.Add(genreId);
+        }
+
+        // Filter by actor
+        if (hasActorFilter)
+        {
+            sql += @"
+                AND EXISTS (
+                    SELECT 1
+                    FROM movie_actors ma
+                    WHERE ma.movie_id = m.movie_id
+                    AND ma.actor_id = @" + parameters.Count + ")";
+            parameters.Add(actorId);
+        }
+
+        // Sort movie titles
+        sql += " ORDER BY m.title " +
+               (sortDirection == "desc" ? "DESC" : "ASC");
+
+        // Execute query and store results
+        foreach (var movie in db.Query(sql, parameters.ToArray()))
+        {
+            movies.Add(movie);
+        }
+    }
+    catch (Exception)
+    {
+        databaseError = "Unable to retrieve movie information. Please check the database connection.";
+    }
+}
+
+<div class="container py-4">
+
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="display-5 fw-bold">Movie Catalogue</h1>
+            <p class="text-muted mb-0">
+                Browse and manage the Third Normal Films collection.
+            </p>
+        </div>
+
+        <a href="@Url.Action("Create", "Movies")"
+           class="btn btn-primary mt-3 mt-md-0">
+            + Add New Movie
+        </a>
+    </div>
+
+    @if (!String.IsNullOrEmpty(databaseError))
+    {
+        <div class="alert alert-danger" role="alert">
+            @databaseError
+        </div>
+    }
+    else
+    {
+        if (stats != null)
+        {
+            <div class="row g-3 mb-4">
+
+                <div class="col-6 col-lg">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-body">
+                            <p class="text-muted mb-1">Total Movies</p>
+                            <h3 class="fw-bold">@stats.movie_count</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-6 col-lg">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-body">
+                            <p class="text-muted mb-1">Genres</p>
+                            <h3 class="fw-bold">@stats.genre_count</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-6 col-lg">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-body">
+                            <p class="text-muted mb-1">Actors</p>
+                            <h3 class="fw-bold">@stats.actor_count</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-6 col-lg">
+                    <div class="card shadow-sm border-0 h-100">
+                        <div class="card-body">
+                            <p class="text-muted mb-1">Available Copies</p>
+                            <h3 class="fw-bold">@stats.available_copies</h3>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        }
+
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-body">
+
+                <h5 class="fw-bold mb-3">Find a Movie</h5>
+
+                <form method="get" action="@Url.Action("Index", "Movies")">
+
+                    <input type="hidden" name="sort" value="@sortDirection" />
+
+                    <div class="row g-3">
+
+                        <div class="col-md-4">
+                            <label for="title" class="form-label">
+                                Movie Title
+                            </label>
+                            <input type="text"
+                                   class="form-control"
+                                   id="title"
+                                   name="title"
+                                   value="@titleFilter"
+                                   placeholder="Search movie titles" />
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="genre" class="form-label">
+                                Genre
+                            </label>
+                            <select class="form-select" id="genre" name="genre">
+                                <option value="">All Genres</option>
+
+                                @foreach (var genre in genreOptions)
+                                {
+                                    <option value="@genre.genre_id"
+                                            selected="@(genreFilter == genre.genre_id.ToString() ? "selected" : null)">
+                                        @genre.genre_name
+                                    </option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label for="actor" class="form-label">
+                                Actor
+                            </label>
+                            <select class="form-select" id="actor" name="actor">
+                                <option value="">All Actors</option>
+
+                                @foreach (var actor in actorOptions)
+                                {
+                                    <option value="@actor.actor_id"
+                                            selected="@(actorFilter == actor.actor_id.ToString() ? "selected" : null)">
+                                        @actor.actor_name
+                                    </option>
+                                }
+                            </select>
+                        </div>
+
+                        <div class="col-12 d-flex flex-wrap gap-2">
+
+                            <button type="submit" class="btn btn-primary">
+                                Search Movies
+                            </button>
+
+                            <a href="@Url.Action("Index", "Movies")"
+                               class="btn btn-outline-secondary">
+                                Clear Filters
+                            </a>
+
+                        </div>
+
+                    </div>
+                </form>
+
+                <hr />
+
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+
+                    <span class="text-muted">
+                        Showing @movies.Count movie(s)
+                    </span>
+
+                    <form method="get" action="@Url.Action("Index", "Movies")">
+
+                        <input type="hidden" name="title" value="@titleFilter" />
+                        <input type="hidden" name="genre" value="@genreFilter" />
+                        <input type="hidden" name="actor" value="@actorFilter" />
+
+                        <button type="submit"
+                                name="sort"
+                                value="@(sortDirection == "asc" ? "desc" : "asc")"
+                                class="btn btn-outline-dark btn-sm">
+                            @(sortDirection == "asc" ? "Sort Z–A ↓" : "Sort A–Z ↑")
+                        </button>
+
+                    </form>
+
+                </div>
+
+            </div>
+        </div>
+
+        if (movies.Count == 0)
+        {
+            <div class="alert alert-warning text-center py-4">
+                <h5>No movies matched your search.</h5>
+                <p class="mb-0">
+                    Try changing your title, genre or actor filters.
+                </p>
+            </div>
+        }
+        else
+        {
+            <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-4">
+
+                @foreach (var movie in movies)
+                {
+                    <div class="col">
+
+                        <article class="card movie-card shadow-sm border-0 h-100">
+
+                            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                                <span class="fw-bold">
+                                    @movie.title
+                                </span>
+
+                                <span class="badge bg-info text-dark">
+                                    @movie.classification
+                                </span>
+                            </div>
+
+                            <div class="card-body">
+
+                                <div class="d-flex justify-content-between text-muted small mb-3">
+                                    <span>@movie.release_year</span>
+                                    <span>@movie.runtime_minutes minutes</span>
+                                </div>
+
+                                <p class="mb-3">
+                                    @movie.description
+                                </p>
+
+                                <hr />
+
+                                <p class="mb-2">
+                                    <strong>Genres:</strong>
+                                    @movie.genre_names
+                                </p>
+
+                                <p class="mb-3">
+                                    <strong>Cast:</strong>
+                                    @movie.actor_names
+                                </p>
+
+                                <div class="d-flex justify-content-between mb-3">
+                                    <span class="text-muted">Rental Price</span>
+                                    <strong>$@String.Format("{0:0.00}", movie.rental_price)</strong>
+                                </div>
+
+                                <div class="d-flex justify-content-between mb-3">
+                                    <span class="text-muted">Available Copies</span>
+                                    <span class="badge bg-success">
+                                        @movie.available_copies / @movie.total_copies
+                                    </span>
+                                </div>
+
+                            </div>
+
+                            <div class="card-footer bg-white border-0 pb-3">
+                                <a href="@Url.Action("Details", "Movies", new { id = movie.movie_id })"
+                                   class="btn btn-outline-primary w-100">
+                                    View Movie Details
+                                </a>
+                            </div>
+
+                        </article>
+
+                    </div>
+                }
+
+            </div>
+        }
+    }
+
+</div>
