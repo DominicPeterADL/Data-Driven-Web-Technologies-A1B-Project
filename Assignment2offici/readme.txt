@@ -1,20 +1,26 @@
-Continuous Assessment 1B - Third Normal Films
+CONTINUOUS ASSESSMENT 1B – THIRD NORMAL FILMS
 
-Completed Sections:
+COMPLETED SECTIONS:
 - Task 1: Movie Index page
 - Task 2: Movie Details page
 - Task 3: Create Movie page
 - Movie search, filtering and sorting functionality
 - Form validation for movie creation
+- Additional Edit Movie functionality
 
-Testing:
-- Database connection configured for PostgreSQL.
+TESTING:
+- PostgreSQL database connection configured and tested.
 - Database classifications checked against existing records.
-- Final application runtime testing still required.
+- Movie Index page tested.
+- Movie Details page tested successfully.
+- Edit Movie functionality tested successfully, including updating a movie title.
+- HTML validation completed using the W3C Nu HTML Checker.
 
-Known Issues:
-- Application has not yet undergone final runtime testing.
+KNOWN ISSUES:
+- Further testing of edge cases and form validation is recommended.
 
-Notes:
+NOTES:
 - The project uses ASP.NET MVC 5 and PostgreSQL.
-- See Web.config for the database connection configuration.
+- The application connects to the PostgreSQL dvdrental database.
+- Database connection settings are configured in Web.config.
+- PostgreSQL must be running and the dvdrental database must be available for the application to work.
