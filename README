@@ -1,0 +1,31 @@
+# Third Normal Films – Movie Rental Web Application
+
+**Continuous Assessment 1B – Data Driven Web Technologies**
+
+This project is an ASP.NET MVC 5 web application for managing a movie rental catalogue using a PostgreSQL database.
+
+## Features
+- Movie catalogue and index page
+- Movie details page
+- Movie search, filtering and sorting
+- Create new movie records
+- Edit existing movie records
+- Form validation
+- PostgreSQL database integration
+
+## Technologies
+- ASP.NET MVC 5
+- C#
+- Razor Views
+- PostgreSQL
+- Npgsql
+
+## Setup
+1. Extract the submitted ZIP file.
+2. Open `Assignment2.sln` in Visual Studio.
+3. Ensure PostgreSQL is installed and the `dvdrental` database is available.
+4. Check the database connection settings in `Web.config`.
+5. Restore NuGet packages if required.
+6. Run the application using IIS Express.
+
+See `Assignment2offici/readme.txt` for additional submission notes.
