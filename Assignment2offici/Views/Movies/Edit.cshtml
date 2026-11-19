@@ -18,7 +18,15 @@
     string description = "";
     string posterFilename = "";
 
-    if (int.TryParse(Request.QueryString["id"], out movieId))
+    string idValue = Request.QueryString["id"];
+
+    if (string.IsNullOrEmpty(idValue) &&
+        ViewContext.RouteData.Values["id"] != null)
+    {
+        idValue = ViewContext.RouteData.Values["id"].ToString();
+    }
+
+    if (int.TryParse(idValue, out movieId))
     {
         var db = Database.Open("dvdRental");
 

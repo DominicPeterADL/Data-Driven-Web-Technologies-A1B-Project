@@ -1,4 +1,5 @@
-﻿@using System;
+﻿@using System.Linq
+@using System;
 @using System.Linq;
 @using WebMatrix.Data;
 
@@ -10,12 +11,20 @@
     dynamic genres = null;
     dynamic actors = null;
     dynamic copies = null;
-    
+
 
     string errorMessage = "";
 
-    if (int.TryParse(Request.QueryString["id"], out movieId))
-    {
+    string idValue = Request.QueryString["id"];
+
+if (string.IsNullOrEmpty(idValue) &&
+    ViewContext.RouteData.Values["id"] != null)
+{
+    idValue = ViewContext.RouteData.Values["id"].ToString();
+}
+
+if (int.TryParse(idValue, out movieId))
+{
         var db = Database.Open("dvdRental");
 
         movie = db.QuerySingle(
@@ -79,120 +88,120 @@
 
 @if (!String.IsNullOrEmpty(errorMessage))
 {
-    <div class="container py-4">
-        <div class="alert alert-warning">
-            @errorMessage
-        </div>
-        <a href="@Url.Action("Index", "Movies")"
-           class="btn btn-primary">
-            Back to Catalogue
-        </a>
+<div class="container py-4">
+    <div class="alert alert-warning">
+        @errorMessage
     </div>
-}
-else
-{
-    <div class="container py-4">
-
-        <h2 class="mb-4">Movie Details</h2>
-
-        <div class="card shadow-sm border-0">
-            <div class="card-body">
-
-                <h3>@movie.title</h3>
-
-                <p class="text-muted">
-                    @movie.release_year |
-                    @movie.runtime_minutes minutes |
-                    @movie.classification
-                </p>
-
-                <hr />
-
-                <p>@movie.description</p>
-
-                <p>
-                    <strong>Rental Price:</strong>
-                    @String.Format("${0:0.00}", movie.rental_price)
-                </p>
-                <hr />
-
-<h5>Genres</h5>
-
-<ul>
-    @foreach (var genre in genres)
-    {
-        <li>@genre.genre_name</li>
-    }
-</ul>
-
-<h5>Cast</h5>
-
-<ul>
-    @foreach (var actor in actors)
-    {
-        <li>
-            @actor.first_name @actor.last_name
-            as @actor.character_name
-        </li>
-    }
-</ul>
-
-<hr />
-
-<h5 class="mb-3">Available Copies</h5>
-
-@if (copies.Any())
-{
-    @foreach (var copy in copies)
-    {
-    <div class="border rounded p-3 mb-3">
-
-        <h6>@copy.store_name</h6>
-
-        <p class="mb-1">
-            <strong>Address:</strong>
-            @copy.street_address, @copy.suburb
-        </p>
-
-        <p class="mb-1">
-            <strong>Phone:</strong>
-            @copy.phone
-        </p>
-
-        <p class="mb-1">
-            <strong>Copy ID:</strong>
-            @copy.copy_id
-        </p>
-
-        <p class="mb-1">
-            <strong>Date Acquired:</strong>
-            @copy.date_acquired
-        </p>
-
-        <p class="mb-0">
-            <strong>Condition:</strong>
-            @copy.condition
-        </p>
-
-
-    </div>
-    }
-}
-                
-<div class="mt-4">
-    <a href="@Url.Action("Edit", "Movies")?id=@movie.movie_id"
-       class="btn btn-warning">
-        Edit Movie
-    </a>
-
     <a href="@Url.Action("Index", "Movies")"
-       class="btn btn-outline-secondary">
+       class="btn btn-primary">
         Back to Catalogue
     </a>
 </div>
+}
+else
+{
+<div class="container py-4">
+
+    <h2 class="mb-4">Movie Details</h2>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body">
+
+            <h3>@movie.title</h3>
+
+            <p class="text-muted">
+                @movie.release_year |
+                @movie.runtime_minutes minutes |
+                @movie.classification
+            </p>
+
+            <hr />
+
+            <p>@movie.description</p>
+
+            <p>
+                <strong>Rental Price:</strong>
+                @String.Format("${0:0.00}", movie.rental_price)
+            </p>
+            <hr />
+
+            <h5>Genres</h5>
+
+            <ul>
+                @foreach (var genre in genres)
+    {
+                <li>@genre.genre_name</li>
+    }
+            </ul>
+
+            <h5>Cast</h5>
+
+            <ul>
+                @foreach (var actor in actors)
+    {
+                <li>
+                    @actor.first_name @actor.last_name
+                    as @actor.character_name
+                </li>
+    }
+            </ul>
+
+            <hr />
+
+            <h5 class="mb-3">Available Copies</h5>
+
+            @if (copies.Count > 0)
+{
+    foreach (var copy in copies)
+    {
+            <div class="border rounded p-3 mb-3">
+
+                <h6>@copy.store_name</h6>
+
+                <p class="mb-1">
+                    <strong>Address:</strong>
+                    @copy.street_address, @copy.suburb
+                </p>
+
+                <p class="mb-1">
+                    <strong>Phone:</strong>
+                    @copy.phone
+                </p>
+
+                <p class="mb-1">
+                    <strong>Copy ID:</strong>
+                    @copy.copy_id
+                </p>
+
+                <p class="mb-1">
+                    <strong>Date Acquired:</strong>
+                    @copy.date_acquired
+                </p>
+
+                <p class="mb-0">
+                    <strong>Condition:</strong>
+                    @copy.condition
+                </p>
+
 
             </div>
-        </div>
+    }
+}
 
+            <div class="mt-4">
+                <a href="@Url.Action("Edit", "Movies")?id=@movie.movie_id"
+                   class="btn btn-warning">
+                    Edit Movie
+                </a>
+
+                <a href="@Url.Action("Index", "Movies")"
+                   class="btn btn-outline-secondary">
+                    Back to Catalogue
+                </a>
+            </div>
+
+        </div>
     </div>
+
+</div>
 }
