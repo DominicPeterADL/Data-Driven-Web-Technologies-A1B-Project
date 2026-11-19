@@ -4,3 +4,10 @@
 *.DotSettings.user
 **/bin/
 **/obj/
+.vs/
+bin/
+obj/
+*.suo
+*.user
+*.cache
+**/packages/
